@@ -26,30 +26,30 @@ Comeback Prediction in Professional League of Legends}
   \city{La Jolla}\state{CA}\country{USA}}
 \email{mr.evanngo@gmail.com}
 
-\author{[Teammate Name]}
+\author{Jimbo Cai}
 \affiliation{%
   \institution{University of California, San Diego}
   \department{Hal\i c\i o\u{g}lu Data Science Institute}
   \city{La Jolla}\state{CA}\country{USA}}
+\email{cjimbo29@gmail.com}
 
 \begin{abstract}
-Win prediction in professional esports is usually framed as binary classification over
-game-state features measured at a single fixed timestamp. This snapshot framing discards a basic
-piece of information: the \emph{direction} in which the game state is moving. We introduce a
-\emph{trajectory-aware} feature set that augments standard 10- and 15-minute differentials with
-momentum terms capturing how gold, experience (XP), and kill leads change between those two
-checkpoints, and we evaluate it across four model families---Logistic Regression, Gaussian Naive
-Bayes, Random Forest, and LightGBM---on 5{,}000 professional matches from the 2024 Oracle Elixir
-dataset spanning ten leagues. We additionally define a distinct \emph{comeback} task: among teams
-trailing by more than 500 gold at ten minutes, predict which recover and win. Our findings are
-reported without spin. After feature engineering, a well-regularized Logistic Regression is the
-strongest model on both tasks (win AUC 0.785; comeback AUC 0.734), and gradient boosting does
-\emph{not} improve on it---an informative negative result for a literature that increasingly
-reaches for complex models. An ablation study shows that objective control, not trajectory, is
-the dominant signal: removing objective features costs 0.023 AUC, while removing trajectory
-features costs only 0.002. Yet the single most-split feature in LightGBM is gold momentum,
-exposing a gap between how heavily a feature is \emph{used} and how much unique signal it
-\emph{adds}.
+Win prediction in professional esports is usually set up as binary classification on game-state
+features taken at a single fixed timestamp. That snapshot setup throws away something basic:
+which direction the game is actually moving. We build a trajectory-aware feature set that adds
+momentum terms to the usual 10- and 15-minute differentials, measuring how gold, experience (XP),
+and kill leads change between the two checkpoints, and we test it across four model families
+(Logistic Regression, Gaussian Naive Bayes, Random Forest, and LightGBM) on 5{,}000 professional
+matches from the 2024 Oracle Elixir dataset across ten leagues. We also define a separate comeback
+task: among teams down more than 500 gold at ten minutes, predict which ones come back and win. We
+report what we found without dressing it up. After feature engineering, a well-regularized
+Logistic Regression is the best model on both tasks (win AUC 0.785, comeback AUC 0.734), and
+gradient boosting does not beat it. That is a useful negative result given how often this kind of
+problem gets handed to a heavier model by default. An ablation shows that objective control, not
+trajectory, is the signal that actually matters: dropping objective features costs 0.023 AUC,
+while dropping trajectory features costs only 0.002. Even so, the single most-split feature in
+LightGBM is gold momentum, which exposes a gap between how much a feature gets used and how much
+unique information it carries.
 \end{abstract}
 
 \keywords{League of Legends, esports analytics, win prediction, trajectory features,
@@ -58,40 +58,39 @@ gradient boosting, comeback classification, ablation}
 \maketitle
 
 \section{Introduction}
-Competitive esports has become a rich applied domain for data mining, driven by fine-grained
-match logs that capture game state across millions of matches. League of Legends (LoL), developed
-by Riot Games, is among the most-played and most-watched titles worldwide, with a professional
-ecosystem spanning Korea (LCK), China (LPL), Europe (LEC), North America (LCS), and numerous
-regional circuits.
+Competitive esports has turned into a genuinely useful testbed for data mining, mostly because the
+match logs are so detailed: you get fine-grained game state across millions of games. League of
+Legends (LoL), made by Riot Games, is one of the most-played and most-watched titles in the world,
+with a pro scene covering Korea (LCK), China (LPL), Europe (LEC), North America (LCS), and a long
+list of regional leagues.
 
-A central problem in this domain is: \emph{given observable game state at an early, fixed
-timestamp, what is the probability that a team wins?} Most prior work treats this as a static
-classification problem---featurizing the state at 10 or 15 minutes and fitting a classifier on
-those snapshot values. This framing ignores the \emph{trajectory} of the game. A team holding a
-1{,}000-gold lead that grew from zero at ten minutes is in a very different position from a team
-holding a 1{,}000-gold lead that shrank from 3{,}000: the former is snowballing, the latter is
-losing control. The two states are indistinguishable to a snapshot model.
+The core question in this space is easy to state: given the game state at some early, fixed point
+in time, how likely is a team to win? Most existing work treats this as a static classification
+problem, featurizing the state at 10 or 15 minutes and fitting a classifier on those numbers. The
+issue is that this ignores where the game is heading. A team sitting on a 1{,}000-gold lead that
+climbed from zero at ten minutes is in a totally different spot than a team on a 1{,}000-gold lead
+that fell from 3{,}000. The first is snowballing; the second is bleeding out a lead. A snapshot
+model cannot tell them apart.
 
-We make three contributions. \textbf{(1)} We introduce a trajectory-aware feature set that
-extends the standard snapshot representation with momentum terms describing how gold, XP, and kill
-differentials evolve between 10 and 15 minutes, evaluated across four model families rather than
-tied to one classifier. \textbf{(2)} We define and study a \emph{comeback} task---predicting
-recovery for teams that trail at ten minutes---as a separate, harder, class-imbalanced problem.
-\textbf{(3)} We report an honest comparative analysis: rather than declaring a complex model the
-winner, we show that a regularized linear model is strongest overall after feature engineering,
-that trajectory information is heavily used but only marginally irreplaceable, and that objective
-control dominates the predictive signal. We view this cautionary result as more useful to
-practitioners than a marginal leaderboard win.
+This paper has three parts. \textbf{(1)} We add a trajectory-aware feature set on top of the usual
+snapshot features, with momentum terms that track how gold, XP, and kill differentials move
+between 10 and 15 minutes, and we test it across four model families instead of pinning it to one.
+\textbf{(2)} We define a comeback task, predicting recovery for teams that are behind at ten
+minutes, and treat it as its own harder, class-imbalanced problem. \textbf{(3)} We keep the
+comparison honest. Instead of crowning a complicated model, we show that a regularized linear model
+comes out on top once the features are engineered well, that trajectory information gets used a lot
+but is not actually irreplaceable, and that objective control is what drives the predictions. We
+think that is more useful to know than squeezing out a fraction of a point on a leaderboard.
 
 \section{Dataset}
 \subsection{Source and Scope}
-We use the 2024 Oracle Elixir professional match dataset~\cite{oracleselixir}, the standard public
-source for professional LoL analytics, which aggregates match data from the Riot Games API across
-all major and regional leagues at multiple timestamps. The complete dataset comprises roughly
-60{,}000 team- and player-level rows across 5{,}000 unique professional matches. Our
-win-prediction analysis operates at the team-game level; we adopt the Blue-side perspective,
-yielding 5{,}000 labeled instances. The modeling set can be doubled to 10{,}000 by including
-Red-side rows, which we leave as a straightforward extension.
+We use the 2024 Oracle Elixir professional match dataset~\cite{oracleselixir}, which is the
+standard public source for pro LoL data. It pulls match data from the Riot Games API across every
+major and regional league at multiple in-game timestamps. The full dataset is roughly 60{,}000
+team- and player-level rows across 5{,}000 unique professional matches. Our win-prediction work
+happens at the team-game level, and we use the Blue-side view, which gives 5{,}000 labeled
+instances. We could double that to 10{,}000 by adding Red-side rows, which we leave as an easy
+extension.
 
 \begin{figure*}[t]
   \centering
@@ -103,24 +102,24 @@ Red-side rows, which we leave as a straightforward extension.
 \end{figure*}
 
 \subsection{Key Statistics}
-The data span all ten primary leagues. By match count the largest are LPL (1{,}032 games, 20.6\%),
-LCK (1{,}011, 20.2\%), LEC (645, 12.9\%), and LCS (483, 9.7\%), with six regional circuits
-contributing the balance (Figure~\ref{fig:overview}). Matches run from January to December 2024
-across patches 14.1--14.16. Game lengths range from 25 to 60 minutes with a mean of 42.6 minutes,
-and the Blue-side win rate is 51.4\%, matching the modest Blue-side advantage reported in prior
-work~\cite{maymin2021}. After filtering to complete records, the key features contain no missing
-values, so no imputation is required.
+The data cover all ten primary leagues. By match count the biggest are LPL (1{,}032 games,
+20.6\%), LCK (1{,}011, 20.2\%), LEC (645, 12.9\%), and LCS (483, 9.7\%), with six regional circuits
+making up the rest (Figure~\ref{fig:overview}). Matches run from January to December 2024 across
+patches 14.1 through 14.16. Game lengths sit between 25 and 60 minutes with a mean of 42.6, and the
+Blue-side win rate is 51.4\%, the familiar small Blue-side edge that shows up in our data. Once we filter to complete records, the key columns have no missing
+values, so we did not need to impute anything.
 
 \subsection{Exploratory Findings}
-Three EDA findings motivate our design. First, gold differential at 15 minutes is the strongest
-single linear predictor of outcome ($r=0.40$), followed by kill differential at 15 minutes
-($r=0.34$); mid-game state is more predictive than early state, justifying 15-minute features.
-Second, outcome is highly conditional on early gold state (Figure~\ref{fig:comeback}): teams
-\emph{winning} at ten minutes win 71.2\% of the time, even games resolve near 51.6\%, and teams
-\emph{losing} by 500+ gold win only 31.2\%. That comeback rate decays sharply with deficit
-size---from 36.0\% for a 500--1000 gold deficit to 6.5\% beyond 2{,}000 gold---establishing the
-comeback task as well-defined and nontrivial. Third, objective counts show strongly nonlinear
-relationships with win rate, motivating tree-based models alongside linear baselines.
+Three things from EDA shaped the design. First, gold differential at 15 minutes is the strongest
+single linear predictor of the outcome ($r=0.40$), with kill differential at 15 minutes close
+behind ($r=0.34$). Mid-game state carries more signal than early state, which is why we keep the
+15-minute features. Second, the outcome depends heavily on the early gold state
+(Figure~\ref{fig:comeback}): teams ahead at ten minutes win 71.2\% of the time, even games land
+near 51.6\%, and teams down 500 or more gold win only 31.2\%. The comeback rate falls off fast as
+the deficit grows, from 36.0\% at a 500 to 1{,}000 gold deficit down to 6.5\% past 2{,}000 gold,
+which is what makes the comeback task both well-defined and actually hard. Third, objective counts
+have clearly nonlinear relationships with win rate, which is the main reason we bring in tree-based
+models alongside the linear ones.
 
 \begin{figure}[t]
   \centering
@@ -132,32 +131,35 @@ relationships with win rate, motivating tree-based models alongside linear basel
 
 \section{Predictive Tasks}
 \subsection{Task 1: Win Prediction}
-The primary task is binary classification: given team-level features observable through fifteen
-minutes, predict whether the team wins. \textbf{Metrics.} We report Accuracy, F1, and AUC-ROC
-under 5-fold stratified cross-validation; AUC-ROC is primary as it is threshold-independent and
-standard in prior work. \textbf{Baselines.} Logistic Regression (linear log-odds), Gaussian Naive
-Bayes (conditional independence), and Random Forest (nonparametric ensemble) span a spectrum of
-modeling assumptions against which our nonlinear candidate, LightGBM, is measured.
+The main task is binary classification: given the team-level features we can see through fifteen
+minutes, predict whether the team wins. \textbf{Metrics.} We report Accuracy, F1, and AUC-ROC under
+5-fold stratified cross-validation. AUC-ROC is the headline number because it does not depend on a
+threshold and it is what most prior work reports, so it makes comparison easier. \textbf{Baselines.}
+Logistic Regression (linear log-odds), Gaussian Naive Bayes (conditional independence), and Random
+Forest (nonparametric ensemble) cover a range of modeling assumptions, and LightGBM is the
+nonlinear model we measure against them.
 
 \subsection{Task 2: Comeback Classification}
-The secondary task restricts to games where Blue trails by more than 500 gold at ten minutes
-(1{,}307 games, 26.1\% of the Blue-side sample) and predicts recovery. This is imbalanced
-(positive rate 31.2\%) and intentionally harder than Task 1. \textbf{Metrics.} F1 is primary; we
-also report AUC-ROC, Precision, and Recall, with class-weight balancing for all models.
+The second task only looks at games where Blue is down more than 500 gold at ten minutes
+(1{,}307 games, 26.1\% of the Blue-side sample) and asks whether that team recovers. It is
+imbalanced (31.2\% positive) and on purpose harder than Task 1. \textbf{Metrics.} F1 is the main
+number given the imbalance, and we also report AUC-ROC, Precision, and Recall, with class-weight
+balancing on every model.
 
 \section{Methodology}
 \subsection{Feature Engineering}
-We engineer 21 features in six groups (Table~\ref{tab:features}). The \emph{trajectory} group is
-the novel element. Gold momentum is
+We build 21 features in six groups (Table~\ref{tab:features}). The trajectory group is the new
+piece. Gold momentum is
 \begin{equation}
   \text{gold\_momentum} = \text{GD}_{15} - \text{GD}_{10},
 \end{equation}
-positive when a lead grows (snowballing) and negative when it shrinks; XP and kill momentum are
-analogous. Interaction terms encode disproportionately decisive joint effects, e.g.
+which is positive when a lead is growing (snowballing) and negative when it is shrinking; XP and
+kill momentum work the same way. The interaction terms capture joint effects that matter more
+together than apart, for example
 \begin{equation}
   \text{gold\_x\_baron} = \text{GD}_{15}\times(\text{barons}-\text{opp\_barons}),
 \end{equation}
-capturing that a gold lead with baron control exceeds the value of either alone.
+since a gold lead plus baron control is worth more than either one on its own.
 
 \begin{table}[t]
 \caption{Engineered feature groups (21 features).}
@@ -177,31 +179,38 @@ Context      & patch (numeric), league win rate & 2 \\
 \end{table}
 
 \subsection{Models}
-We treat all four models as candidates for the same feature set. \textbf{Logistic Regression}
-(standardized, $C{=}1.0$) is the linear reference; \textbf{Naive Bayes} a lower bound;
-\textbf{Random Forest} (200 trees, depth 8) a strong nonparametric baseline; and
-\textbf{LightGBM}~\cite{lightgbm} the gradient-boosted candidate (500 estimators, learning rate
-0.05, 31 leaves, depth 6, subsample/colsample 0.8, $\ell_1/\ell_2{=}0.1$, 50-round early
-stopping).
+We treat all four models as candidates for the same feature set rather than picking a favorite up
+front. \textbf{Logistic Regression} (standardized inputs, $C{=}1.0$) is the linear reference.
+\textbf{Naive Bayes} is the lower bound. \textbf{Random Forest} (200 trees, depth 8) is a strong
+nonparametric baseline. \textbf{LightGBM}~\cite{lightgbm} is the gradient-boosted candidate
+(500 estimators, learning rate 0.05, 31 leaves, depth 6, subsample and colsample 0.8,
+$\ell_1/\ell_2{=}0.1$, 50-round early stopping).
 
 \section{Related Work}
-Win prediction in MOBA games dates to at least 2014. Yang et al.~\cite{yang2014} showed draft
-composition carries significant signal in Dota~2. Semenov et al.~\cite{semenov2016} applied
-logistic regression and random forests to MOBA outcome prediction, reporting low-70\% accuracy
-from combined features---comparable to our Task 1. Hodge et al.~\cite{hodge2019} used sequence
-models on live Dota~2 telemetry, outperforming static baselines. We differ by (1) isolating
-trajectory between two checkpoints as explicit, interpretable features rather than learning it
-from full sequences; (2) formulating comeback as a distinct task; and (3) reporting a controlled
-comparison whose headline is a cautionary result rather than a state-of-the-art claim.
+Win prediction in MOBA games goes back to at least 2014. Yang et al.~\cite{yang2014} modeled
+in-game combat as a sequence of graphs and showed that patterns in those combat graphs predict
+game outcomes. Semenov et al.~\cite{semenov2016} predicted the match winner from team drafts in
+Dota~2, testing Naive Bayes, logistic regression, gradient-boosted trees, and factorization
+machines (which worked best), and reported AUC in the 0.66 to 0.71 range depending on skill tier.
+Our Task 1 sits a bit higher (0.785), which is expected since we use in-game state through fifteen
+minutes rather than drafts alone. Hodge et al.~\cite{hodge2019} built the first live professional
+win-prediction system deployed at a real tournament, using engineered features with standard ML
+models rather than a new algorithm. Closer to our setting, Maymin~\cite{maymin2021} calibrated an
+in-game win-probability model on millions of ranked LoL games, with a focus on valuing individual
+player actions. We do
+three things differently: we pull the trajectory between two checkpoints out as explicit,
+interpretable features instead of learning it from a full sequence; we treat comeback as its own
+task; and we run a controlled comparison whose main takeaway is a caution rather than a new
+state-of-the-art number.
 
 \section{Results}
 \subsection{Task 1: Win Prediction}
-Table~\ref{tab:task1} and Figure~\ref{fig:models} report 5-fold CV results. The clearest finding
-is that \textbf{Logistic Regression is best on every metric} (accuracy 0.711, F1 0.720, AUC
-0.785). LightGBM is competitive (AUC 0.771) but does not surpass it; Random Forest trails (0.770)
-and Naive Bayes is weakest (0.754). Once trajectory and interaction terms are engineered, the
-residual relationship between features and win probability is close to linear, leaving little
-nonlinear structure for boosting to exploit.
+Table~\ref{tab:task1} and Figure~\ref{fig:models} show the 5-fold CV results. The clearest finding
+is that \textbf{Logistic Regression is the best model on every metric} (accuracy 0.711, F1 0.720,
+AUC 0.785). LightGBM is right there (AUC 0.771) but never passes it, Random Forest is just behind
+(0.770), and Naive Bayes is the weakest (0.754). Our read is that once you engineer the trajectory
+and interaction terms by hand, what is left of the relationship between features and win
+probability is close to linear, so there is not much nonlinear structure left for boosting to find.
 
 \begin{table}[t]
 \caption{Task 1 win prediction (5-fold stratified CV). Best per column in bold.}
@@ -227,11 +236,12 @@ LightGBM      & 0.700 & 0.710 & 0.771 \\
 \end{figure*}
 
 \subsection{Task 2: Comeback Prediction}
-Table~\ref{tab:task2} shows the same ordering: Logistic Regression leads on F1 (0.551) and AUC
-(0.734). LightGBM achieves a respectable AUC (0.702) but the \emph{worst} F1 (0.406): its ranking
-is sound, but its default threshold is too conservative on the minority class (recall 0.384).
-Every model is far below its Task 1 level, confirming recovery prediction is intrinsically harder.
-Threshold calibration (e.g.\ Platt scaling) is the obvious next step.
+Table~\ref{tab:task2} tells the same story. Logistic Regression leads on F1 (0.551) and AUC
+(0.734). LightGBM gets a decent AUC (0.702) but the \emph{worst} F1 (0.406): its probability
+ranking is fine, but its default 0.5 threshold is too cautious on the minority class, which kills
+recall (0.384). Every model drops well below its Task 1 level, which confirms that predicting a
+comeback is just harder than predicting outcomes overall. Calibrating the threshold (Platt scaling,
+say) is the obvious next move.
 
 \begin{table}[t]
 \caption{Task 2 comeback prediction (5-fold stratified CV). Best per column in bold.}
@@ -249,12 +259,13 @@ LightGBM      & 0.406 & 0.702 & 0.439 & 0.384 \\
 \end{table}
 
 \subsection{Ablation Study}
-Removing one feature group at a time from a lightweight LightGBM (Figure~\ref{fig:ablation}); its
-absolute AUC (0.753) is below the tuned model in Table~\ref{tab:task1}, so relative drops are what
-matter. \textbf{Removing Objectives causes by far the largest drop} ($-0.023$ AUC, to 0.730),
-confirming objective control dominates. Removing Trajectory costs only $-0.002$ AUC---small but
-consistent across folds. Removing Mid (15m) slightly \emph{raises} AUC (to 0.756), revealing
-redundancy between the 15-minute snapshot and the trajectory/early features.
+We drop one feature group at a time from a lighter LightGBM (Figure~\ref{fig:ablation}). That
+smaller config sits a bit below the tuned model in Table~\ref{tab:task1} in absolute AUC (0.753),
+so the relative drops are the thing to read. \textbf{Dropping Objectives causes by far the biggest
+hit} (0.023 AUC, down to 0.730), which says objective control is doing most of the work. Dropping
+Trajectory costs only 0.002 AUC, small but consistent across folds. Oddly, dropping the Mid (15m)
+group nudges AUC up (to 0.756), which points to redundancy between the 15-minute snapshot and the
+trajectory and early features.
 
 \begin{figure}[t]
   \centering
@@ -264,12 +275,12 @@ redundancy between the 15-minute snapshot and the trajectory/early features.
 \end{figure}
 
 \subsection{Feature Importance}
-By LightGBM split count (Figure~\ref{fig:importance}), the most-used feature is \emph{gold
-momentum}, ahead of XP differential at 15 minutes and gold differential at 10 minutes. The tension
-with the ablation result is the paper's most interesting point: trajectory is the feature the
-model splits on most, yet removing it barely changes AUC, because momentum is a deterministic
-function of the 10- and 15-minute differentials. Split usage measures convenience, not unique
-contribution.
+By LightGBM split count (Figure~\ref{fig:importance}), the most-used feature is gold momentum,
+ahead of XP differential at 15 minutes and gold differential at 10 minutes. The interesting part is
+how this clashes with the ablation: trajectory is the feature the model splits on most, but pulling
+it out barely moves AUC. The reason is that momentum is just a deterministic function of the 10-
+and 15-minute differentials, so the information is still there even without it. Split count
+measures how handy a feature is for the trees, not how much unique signal it adds.
 
 \begin{figure}[t]
   \centering
@@ -280,41 +291,43 @@ contribution.
 \end{figure}
 
 \subsection{Patch Sensitivity}
-Training on patches 14.1--14.11 and testing on 14.12--14.16, LightGBM reached AUC 0.761, close to
-its CV value (0.771), indicating the feature set transfers across patches---unsurprising, since
-objective-control mechanics are relatively patch-stable.
+Training on patches 14.1 through 14.11 and testing on 14.12 through 14.16, LightGBM hits AUC 0.761,
+close to its CV value of 0.771. So the feature set holds up across patches, which makes sense given
+that objective-control mechanics stay fairly stable patch to patch in pro play.
 
 \subsection{Case Study}
-Consider Blue holding $+500$ gold at ten minutes but a gold momentum of $-800$, arriving at $-300$
-at fifteen minutes. A snapshot model rates this near a coin flip; a trajectory-aware model assigns
-a lower win probability because negative momentum signals Red is seizing control. The interaction
-of \texttt{kd10}, \texttt{gd15}, and \texttt{gold\_momentum} distinguishes ``ahead and fading''
-from ``ahead and extending''---the distinction a snapshot discards.
+Take a game where Blue is up 500 gold at ten minutes but has a gold momentum of $-800$, so it is
+sitting at $-300$ by fifteen minutes. A snapshot model calls that close to a coin flip. A
+trajectory-aware model gives it a lower win probability, because the negative momentum is a sign
+that Red is taking over, usually by trading the early lead for objectives. The interaction of
+\texttt{kd10}, \texttt{gd15}, and \texttt{gold\_momentum} is what lets the model separate ``ahead
+and fading'' from ``ahead and pulling away,'' which is exactly the thing a snapshot loses.
 
 \section{Discussion}
-\textbf{Why the linear model wins.} Feature engineering does much of the work a nonlinear model
-would otherwise learn: momentum is a hand-computed difference and the interaction terms supply
-products a tree would need many splits to approximate. What remains is close to linearly
-separable. \textbf{Used vs.\ irreplaceable.} The gold-momentum result cautions against reading
-split-based importance as causal contribution; importance and ablation answer different
-questions. \textbf{Limitations.} We use team-level aggregates only; player skill, matchups, and
-draft synergy are unobserved. We model 5{,}000 Blue-side games; Red-side inclusion would double
-the sample. Comeback labels use a 500-gold/ten-minute threshold; alternatives may differ.
-\textbf{Broader use.} Win-probability models support broadcast overlays, coaching tools, and draft
-simulators; the comeback classifier surfaces high-leverage moments.
+\textbf{Why the linear model wins.} The feature engineering does a lot of the work a nonlinear
+model would otherwise have to learn on its own. Momentum is a hand-computed difference, and the
+interaction terms hand the model the products a tree would need a bunch of splits to build. What is
+left is close to linearly separable. \textbf{Used vs.\ irreplaceable.} The gold-momentum result is
+a good reminder not to read split-based importance as causal contribution; importance and ablation
+are answering two different questions. \textbf{Limitations.} We only use team-level aggregates, so
+player skill, champion matchups, and draft synergy are all unobserved. We model 5{,}000 Blue-side
+games, and adding Red-side rows would double that. The comeback labels use a 500-gold cutoff at ten
+minutes, and a different cutoff could shift the conclusions. \textbf{Broader use.} Win-probability
+models are useful for broadcast overlays, coaching tools, and draft simulators, and the comeback
+classifier is handy for flagging the high-leverage moments.
 
 \section{Conclusion}
-We presented a trajectory-aware feature set for win and comeback prediction in professional League
-of Legends, evaluated across four model families on 5{,}000 Oracle Elixir 2024 matches. Reported
-without spin: a regularized Logistic Regression is strongest on both tasks, gradient boosting
-offers no improvement once trajectory and interaction features are engineered explicitly, and
-objective control---not trajectory---is the dominant signal. Trajectory features are nonetheless
-the most heavily used by the boosted model, a discrepancy we trace to redundancy with the raw
-differentials. The system is deployed as an interactive dashboard. In this domain, careful
-features and a simple model beat a complex model on autopilot.
+We built a trajectory-aware feature set for win and comeback prediction in pro League of Legends
+and tested it across four model families on 5{,}000 Oracle Elixir 2024 matches. The honest version
+of the results: a regularized Logistic Regression is the best model on both tasks, gradient
+boosting adds nothing once the trajectory and interaction features exist, and objective control,
+not trajectory, is the signal that matters most. Trajectory features still get used the most by the
+boosted model, which comes down to redundancy with the raw differentials. The whole thing is
+deployed as an interactive dashboard. The main lesson we took away is that in this setting, good
+features with a simple model beat a complex model run on default settings.
 
 \begin{acks}
-Data provided by Oracle Elixir (\url{https://oracleselixir.com}). DSC 148 course project, UCSD.
+Data provided by Oracle Elixir (\url{https://oracleselixir.com}).
 \end{acks}
 
 \begin{thebibliography}{9}
@@ -324,9 +337,10 @@ Data provided by Oracle Elixir (\url{https://oracleselixir.com}). DSC 148 course
   predictive of success in MOBA games. \emph{Proc.\ Foundations of Digital Games}, 2014.
 \bibitem{semenov2016} A.~Semenov, P.~Romov, S.~Korolev, D.~Yashkov, and K.~Neklyudov. Performance
   of machine learning algorithms in predicting game outcome from drafts in Dota~2.
-  \emph{ECML/PKDD Workshop on ML and Data Mining for eSports}, 2016.
+  \emph{Analysis of Images, Social Networks and Texts (AIST)}, Springer CCIS, vol.~661, 2016.
 \bibitem{hodge2019} V.~Hodge, S.~Devlin, N.~Sephton, F.~Block, P.~Cowling, and A.~Drachen. Win
-  prediction in e-sports: Live professional match prediction. \emph{IEEE Trans.\ Games}, 2019.
+  Prediction in Multi-Player Esports: Live Professional Match Prediction.
+  \emph{IEEE Trans.\ Games}, 2019.
 \bibitem{lightgbm} G.~Ke et al. LightGBM: A highly efficient gradient boosting decision tree.
   \emph{NeurIPS}, 30, 2017.
 \bibitem{maymin2021} P.~Z.~Maymin. Smart kills and worthless deaths: eSports analytics for League
