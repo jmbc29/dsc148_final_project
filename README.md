@@ -114,8 +114,8 @@ streamlit run dashboard.py
 
 ## Authors
 
-- Evan Ngo — [github.com/mrevanngo](https://github.com/mrevanngo)
-- [Teammate Name]
+- Evan Ngo ([github.com/mrevanngo](https://github.com/mrevanngo))
+- Jimbo Cai ([github.com/jmbc29](https://github.com/jmbc29))
 
 ## Citation
 
