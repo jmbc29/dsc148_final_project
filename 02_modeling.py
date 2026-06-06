@@ -14,6 +14,8 @@ import seaborn as sns
 import lightgbm as lgb
 import warnings
 warnings.filterwarnings('ignore')
+import os
+os.makedirs('outputs', exist_ok=True)
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
@@ -39,7 +41,7 @@ GOLD = '#C89B3C'; BLUE = '#5B8AF5'; RED = '#E84057'
 GREEN = '#0BC4AA'; PURPLE = '#9B59B6'; ORANGE = '#E67E22'
 
 # ── Load Data ──────────────────────────────────────────────────────────────────
-df_raw = pd.read_csv('/home/claude/lol_2024.csv', low_memory=False)
+df_raw = pd.read_csv('lol_2024.csv', low_memory=False)
 df_raw['date'] = pd.to_datetime(df_raw['date'])
 teams = df_raw[(df_raw['position'] == 'team') &
                (df_raw['datacompleteness'] == 'complete')].copy()
@@ -379,7 +381,7 @@ for ax, metric in zip(axes, metrics):
                 f'{val:.4f}', ha='center', fontsize=8, color='white', fontweight='bold')
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig6_model_comparison.png',
+plt.savefig('outputs/fig6_model_comparison.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("\n✓ Figure 6 saved: Model Comparison")
@@ -404,7 +406,7 @@ for ax, metric in zip(axes, ['F1', 'AUC-ROC']):
                 f'{val:.4f}', ha='center', fontsize=8, color='white', fontweight='bold')
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig7_comeback_comparison.png',
+plt.savefig('outputs/fig7_comeback_comparison.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 7 saved: Comeback Comparison")
@@ -433,7 +435,7 @@ for bar, val in zip(bars, abl_vals):
             f'{val:.4f}', ha='center', fontsize=9, color='white')
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig8_ablation.png',
+plt.savefig('outputs/fig8_ablation.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 8 saved: Ablation Study")
@@ -452,7 +454,7 @@ for bar, val in zip(bars, top_feats.values[::-1]):
             str(int(val)), va='center', fontsize=9, color='white')
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig9_feature_importance.png',
+plt.savefig('outputs/fig9_feature_importance.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 9 saved: Feature Importance")
@@ -486,7 +488,7 @@ for ax, (nm, cm_model) in zip(axes, cm_models.items()):
     ax.set_yticklabels(['Loss', 'Win'])
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig10_confusion_matrices.png',
+plt.savefig('outputs/fig10_confusion_matrices.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 10 saved: Confusion Matrices")
@@ -494,8 +496,8 @@ print("✓ Figure 10 saved: Confusion Matrices")
 # ── Save model results to CSV for report ──────────────────────────────────────
 task1_df = pd.DataFrame(results_task1).T[['Accuracy', 'F1', 'AUC-ROC']]
 task2_df = pd.DataFrame(results_task2).T[['F1', 'AUC-ROC', 'Precision', 'Recall']]
-task1_df.to_csv('/home/claude/lol_project/outputs/results_task1.csv')
-task2_df.to_csv('/home/claude/lol_project/outputs/results_task2.csv')
+task1_df.to_csv('outputs/results_task1.csv')
+task2_df.to_csv('outputs/results_task2.csv')
 
 print("\n" + "=" * 65)
 print("RESULTS SUMMARY")
@@ -504,10 +506,10 @@ print("\nTask 1 – Win Prediction:")
 print(task1_df.round(4).to_string())
 print("\nTask 2 – Comeback Prediction:")
 print(task2_df.round(4).to_string())
-print("\nAll outputs saved to /home/claude/lol_project/outputs/")
+print("\nAll outputs saved to outputs/")
 
 # Save the trained LightGBM model and feature list for dashboard
 import pickle
-with open('/home/claude/lol_project/lgb_model.pkl', 'wb') as f:
+with open('lgb_model.pkl', 'wb') as f:
     pickle.dump({'model': lgb_final, 'features': ALL_FEATURES}, f)
 print("✓ LightGBM model saved for dashboard")
