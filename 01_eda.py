@@ -130,7 +130,7 @@ ax.set_ylabel('Win Rate')
 ax.set_ylim(0.4, 0.6)
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig1_dataset_overview.png',
+plt.savefig('outputs/fig1_dataset_overview.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("\n✓ Figure 1 saved: Dataset Overview")
@@ -161,7 +161,7 @@ for bar, val in zip(bars, correlations.values):
             f'{val:.3f}', va='center', ha=ha, fontsize=8, color='white')
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig2_correlations.png',
+plt.savefig('outputs/fig2_correlations.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 2 saved: Feature Correlations")
@@ -244,7 +244,7 @@ for bar, val, cnt in zip(bars, comeback_rates, counts):
             f'{val:.3f}\n(n={cnt})', ha='center', fontsize=9, color='white')
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig3_comeback_analysis.png',
+plt.savefig('outputs/fig3_comeback_analysis.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 3 saved: Comeback Analysis")
@@ -319,7 +319,7 @@ ax.set_ylabel('Win Rate')
 ax.set_ylim(0, 0.85)
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig4_objectives.png',
+plt.savefig('outputs/fig4_objectives.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 4 saved: Objective Analysis")
@@ -361,7 +361,7 @@ for bar, val in zip(bars, league_stats['avg_gd15_std']):
             f'{val:.0f}', va='center', fontsize=9, color='white')
 
 plt.tight_layout()
-plt.savefig('/home/claude/lol_project/outputs/fig5_leagues.png',
+plt.savefig('outputs/fig5_leagues.png',
             dpi=150, bbox_inches='tight', facecolor='#0f1117')
 plt.close()
 print("✓ Figure 5 saved: League Comparison")
@@ -379,4 +379,4 @@ print(f"\nTop 5 features by |correlation| with win:")
 for feat, corr in correlations.abs().sort_values(ascending=False).head(5).items():
     print(f"  {feat:<25} r = {correlations[feat]:+.3f}")
 
-print("\nAll EDA figures saved to /home/claude/lol_project/outputs/")
+print("\nAll EDA figures saved to outputs/")

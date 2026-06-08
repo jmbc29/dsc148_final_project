@@ -88,6 +88,7 @@ def engineer_features(df):
     f['first_obj_sum'] = (f['firstblood'].fillna(0) +
                           f['firstdragon'].fillna(0) +
                           f['firstherald'].fillna(0) +
+                          f['firstbaron'].fillna(0) +
                           f['firsttower'].fillna(0))
 
     # ── Group 6: Interaction Features ────────────────────────────────────────

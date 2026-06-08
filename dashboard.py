@@ -53,14 +53,20 @@ def _patch_to_float(p):
         return 14.0
 
 
+# Bump this any time load_model() changes so @st.cache_resource invalidates.
+_MODEL_VERSION = 2
+
 # -- Train the model (Logistic Regression) on the dataset -----------------------
 @st.cache_resource
-def load_model():
+def load_model(_version: int = _MODEL_VERSION):
     """Train Logistic Regression on lol_2024.csv using the same 21 features the
     sliders produce. Cached so it only runs once per session."""
     df = pd.read_csv('lol_2024.csv', low_memory=False)
     teams = df[(df['position'] == 'team') & (df['datacompleteness'] == 'complete')]
     blue = teams[teams['side'] == 'Blue'].copy()
+    red = teams[teams['side'] == 'Red'][['gameid', 'dragons', 'barons', 'heralds',
+                                         'towers', 'turretplates']].copy()
+    blue = blue.merge(red, on='gameid', suffixes=('', '_opp'))
 
     f = pd.DataFrame(index=blue.index)
     f['gd10'] = blue['golddiffat10']
@@ -74,15 +80,14 @@ def load_model():
     f['gold_momentum'] = f['gd15'] - f['gd10']
     f['xp_momentum'] = f['xpd15'] - f['xpd10']
     f['kill_momentum'] = f['kd15'] - f['kd10']
-    # Objective features use the same single-team approximations as the sliders,
-    # so training and live inputs are transformed identically.
-    f['dragon_diff'] = blue['dragons'] - (3 - blue['dragons'])
-    f['baron_diff'] = blue['barons']
-    f['herald_diff'] = blue['heralds']
-    f['tower_diff'] = blue['towers'] - 6
-    f['plate_diff'] = blue['turretplates'] - 5
+    f['dragon_diff'] = blue['dragons'] - blue['dragons_opp']
+    f['baron_diff'] = blue['barons'] - blue['barons_opp']
+    f['herald_diff'] = blue['heralds'] - blue['heralds_opp']
+    f['tower_diff'] = blue['towers'] - blue['towers_opp']
+    f['plate_diff'] = blue['turretplates'] - blue['turretplates_opp']
     f['first_obj_sum'] = (blue['firstblood'].fillna(0) + blue['firstdragon'].fillna(0) +
-                          blue['firstherald'].fillna(0) + blue['firsttower'].fillna(0))
+                          blue['firstherald'].fillna(0) + blue['firstbaron'].fillna(0) +
+                          blue['firsttower'].fillna(0))
     f['gold_x_baron'] = f['gd15'] * f['baron_diff']
     f['gold_x_dragon'] = f['gd15'] * f['dragon_diff']
     f['patch_num'] = blue['patch'].apply(_patch_to_float)
@@ -103,7 +108,7 @@ def load_model():
 
 
 try:
-    model = load_model()
+    model = load_model(_MODEL_VERSION)
 except FileNotFoundError:
     st.error("Could not find **lol_2024.csv**. Download it from "
              "https://oracleselixir.com/tools/downloads and place it in the same "
@@ -114,19 +119,22 @@ except FileNotFoundError:
 # -- Feature builder (must match training order) --------------------------------
 def build_feature_vector(gd10, xpd10, csd10, kd10,
                          gd15, xpd15, csd15, kd15,
-                         dragons, barons, heralds,
-                         towers, plates,
+                         dragons, opp_dragons,
+                         barons, opp_barons,
+                         heralds, opp_heralds,
+                         towers, opp_towers,
+                         plates, opp_plates,
                          firstblood, firstdragon, firstherald,
                          firstbaron, firsttower):
     gold_momentum = gd15 - gd10
     xp_momentum = xpd15 - xpd10
     kill_momentum = kd15 - kd10
-    dragon_diff = dragons - (3 - dragons)
-    baron_diff = barons
-    herald_diff = heralds
-    tower_diff = towers - 6
-    plate_diff = plates - 5
-    first_obj_sum = firstblood + firstdragon + firstherald + firsttower
+    dragon_diff = dragons - opp_dragons
+    baron_diff = barons - opp_barons
+    herald_diff = heralds - opp_heralds
+    tower_diff = towers - opp_towers
+    plate_diff = plates - opp_plates
+    first_obj_sum = firstblood + firstdragon + firstherald + firstbaron + firsttower
     gold_x_baron = gd15 * baron_diff
     gold_x_dragon = gd15 * dragon_diff
     return np.array([[gd10, xpd10, csd10, kd10,
@@ -160,14 +168,20 @@ with col_s4:
     kd15 = st.slider("Kill Diff", -10, 10, 0, 1, key='kd15')
 
 st.sidebar.markdown("### 🏆 Objectives")
+st.sidebar.markdown("<small style='color:#888'>Your Team &nbsp;|&nbsp; Opponent</small>", unsafe_allow_html=True)
 col_o1, col_o2 = st.sidebar.columns(2)
 with col_o1:
-    dragons = st.number_input("Your Dragons", 0, 5, 0)
-    barons = st.number_input("Your Barons", 0, 4, 0)
-    heralds = st.number_input("Your Heralds", 0, 2, 0)
+    dragons = st.number_input("🐉 Your Dragons", 0, 5, 0)
+    barons = st.number_input("🏆 Your Barons", 0, 4, 0)
+    heralds = st.number_input("⚙️ Your Heralds", 0, 2, 0)
+    towers = st.number_input("🏰 Your Towers", 0, 11, 3)
+    plates = st.number_input("🛡️ Your Plates", 0, 15, 5)
 with col_o2:
-    towers = st.number_input("Your Towers", 0, 11, 3)
-    plates = st.number_input("Your Plates", 0, 15, 5)
+    opp_dragons = st.number_input("🐉 Opp Dragons", 0, 5, 0)
+    opp_barons = st.number_input("🏆 Opp Barons", 0, 4, 0)
+    opp_heralds = st.number_input("⚙️ Opp Heralds", 0, 2, 0)
+    opp_towers = st.number_input("🏰 Opp Towers", 0, 11, 3)
+    opp_plates = st.number_input("🛡️ Opp Plates", 0, 15, 5)
 
 st.sidebar.markdown("### 🎯 First Objectives")
 firstblood = int(st.sidebar.checkbox("First Blood", value=False))
@@ -184,8 +198,11 @@ patch_num = st.sidebar.slider("Patch", 14.01, 14.20, 14.10, 0.01)
 X_input = build_feature_vector(
     gd10, xpd10, csd10, kd10,
     gd15, xpd15, csd15, kd15,
-    dragons, barons, heralds,
-    towers, plates,
+    dragons, opp_dragons,
+    barons, opp_barons,
+    heralds, opp_heralds,
+    towers, opp_towers,
+    plates, opp_plates,
     firstblood, firstdragon, firstherald, firstbaron, firsttower
 )
 try:
@@ -237,7 +254,7 @@ m1, m2, m3, m4, m5 = st.columns(5)
 momentum = gd15 - gd10
 m1.metric("Gold Diff @15m", f"{gd15:+,}", f"{momentum:+,} since 10m")
 m2.metric("Kill Diff @15m", f"{kd15:+d}", f"{kd15-kd10:+d} since 10m")
-m3.metric("Objectives", f"🐉{dragons} 🏰{barons}", f"{towers} towers")
+m3.metric("Objectives", f"🐉{dragons-opp_dragons:+d} 🏰{barons-opp_barons:+d}", f"{towers-opp_towers:+d} towers")
 m4.metric("Trajectory", "Snowballing" if momentum > 500 else ("Stable" if abs(momentum) < 500 else "Falling"),
           f"{momentum:+,} gold momentum")
 m5.metric("First Objs", f"{firstblood+firstdragon+firstherald+firstbaron+firsttower}/5",
@@ -263,12 +280,15 @@ with col_a:
 with col_b:
     st.markdown("### 🎯 Objective Radar")
     categories = ['Gold Lead', 'XP Lead', 'Kill Lead', 'Objectives', 'Turret Control']
+    dragon_diff_ui = dragons - opp_dragons
+    tower_diff_ui = towers - opp_towers
+    baron_diff_ui = barons - opp_barons
     values = [
         min(max((gd15 + 5000) / 10000, 0), 1),
         min(max((xpd15 + 4000) / 8000, 0), 1),
         min(max((kd15 + 10) / 20, 0), 1),
-        (dragons + barons * 2 + heralds) / 15,
-        min(towers / 11, 1),
+        min(max((dragon_diff_ui * 2 + baron_diff_ui * 4 + 10) / 20, 0), 1),
+        min(max((tower_diff_ui + 5) / 10, 0), 1),
     ]
     fig_radar = go.Figure(go.Scatterpolar(
         r=values + [values[0]], theta=categories + [categories[0]],

@@ -211,6 +211,9 @@ AUC 0.785). LightGBM is right there (AUC 0.771) but never passes it, Random Fore
 (0.770), and Naive Bayes is the weakest (0.754). Our read is that once you engineer the trajectory
 and interaction terms by hand, what is left of the relationship between features and win
 probability is close to linear, so there is not much nonlinear structure left for boosting to find.
+Figure~\ref{fig:confusion} shows the per-class breakdown: all four models make similar types of
+errors, with slightly more false negatives than false positives, consistent with the mild Blue-side
+win-rate imbalance.
 
 \begin{table}[t]
 \caption{Task 1 win prediction (5-fold stratified CV). Best per column in bold.}
@@ -235,13 +238,21 @@ LightGBM      & 0.700 & 0.710 & 0.771 \\
   \label{fig:models}
 \end{figure*}
 
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.92\textwidth]{outputs/fig10_confusion_matrices.png}
+  \caption{Confusion matrices for all four models on Task 1 (win prediction), evaluated via 5-fold
+  CV prediction on the full dataset.}
+  \label{fig:confusion}
+\end{figure*}
+
 \subsection{Task 2: Comeback Prediction}
-Table~\ref{tab:task2} tells the same story. Logistic Regression leads on F1 (0.551) and AUC
-(0.734). LightGBM gets a decent AUC (0.702) but the \emph{worst} F1 (0.406): its probability
-ranking is fine, but its default 0.5 threshold is too cautious on the minority class, which kills
-recall (0.384). Every model drops well below its Task 1 level, which confirms that predicting a
-comeback is just harder than predicting outcomes overall. Calibrating the threshold (Platt scaling,
-say) is the obvious next move.
+Table~\ref{tab:task2} and Figure~\ref{fig:comeback_comparison} tell the same story. Logistic
+Regression leads on F1 (0.551) and AUC (0.734). LightGBM gets a decent AUC (0.702) but the
+\emph{worst} F1 (0.406): its probability ranking is fine, but its default 0.5 threshold is too
+cautious on the minority class, which kills recall (0.384). Every model drops well below its Task 1
+level, which confirms that predicting a comeback is just harder than predicting outcomes overall.
+Calibrating the threshold (Platt scaling, say) is the obvious next move.
 
 \begin{table}[t]
 \caption{Task 2 comeback prediction (5-fold stratified CV). Best per column in bold.}
@@ -257,6 +268,15 @@ LightGBM      & 0.406 & 0.702 & 0.439 & 0.384 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.92\textwidth]{outputs/fig7_comeback_comparison.png}
+  \caption{Task 2 comeback prediction: F1 and AUC-ROC across all four models with CV error bars.
+  The AUC gap between models is smaller than on Task 1, while the F1 gap is larger, driven by
+  LightGBM's poor recall on the minority class.}
+  \label{fig:comeback_comparison}
+\end{figure*}
 
 \subsection{Ablation Study}
 We drop one feature group at a time from a lighter LightGBM (Figure~\ref{fig:ablation}). That
