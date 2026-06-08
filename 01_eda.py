@@ -35,7 +35,7 @@ GREEN  = '#0BC4AA'
 PURPLE = '#9B59B6'
 
 # ── Load & Filter ──────────────────────────────────────────────────────────────
-df_raw = pd.read_csv('/home/claude/lol_2024.csv', low_memory=False)
+df_raw = pd.read_csv('lol_2024.csv', low_memory=False)
 df_raw['date'] = pd.to_datetime(df_raw['date'])
 
 # Team-level rows only for most analysis
